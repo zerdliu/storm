@@ -219,7 +219,8 @@
 ;; inactive -> nothing
 ;; rebalance -> wait X seconds then rebalance
 ;; swap... (need to handle kill during swap, etc.)
-;; event transitions are delayed by timer... anything else that comes through (e.g. a kill) override the transition? or just disable other transitions during the transition?
+;; event transitions are delayed by timer... anything else that comes through (e.g. a kill) override
+;the transition? or just disable other transitions during the transition?
 
 
 (defmulti setup-jar cluster-mode)
@@ -235,7 +236,8 @@
 ;; 1. read assignment
 ;; 2. see which executors/nodes are up
 ;; 3. make new assignment to fix any problems
-;; 4. if a storm exists but is not taken down fully, ensure that storm takedown is launched (step by step remove executors and finally remove assignments)
+;; 4. if a storm exists but is not taken down fully, ensure that storm takedown is launched 
+;  (step by step remove executors and finally remove assignments)
 
 (defn- assigned-slots
   "Returns a map from node-id to a set of ports"
@@ -352,7 +354,8 @@
 (defn update-heartbeats! [nimbus storm-id all-executors existing-assignment]
   (log-debug "Updating heartbeats for " storm-id " " (pr-str all-executors))
   (let [storm-cluster-state (:storm-cluster-state nimbus)
-        executor-beats (.executor-beats storm-cluster-state storm-id (:executor->node+port existing-assignment))
+        executor-beats (.executor-beats storm-cluster-state storm-id 
+          (:executor->node+port existing-assignment))
         cache (update-heartbeat-cache (@(:heartbeats-cache nimbus) storm-id)
                                       executor-beats
                                       all-executors)]
@@ -433,17 +436,20 @@
   (into {} (for [tid storm-ids]
              {tid (set (compute-executors nimbus tid))})))
 
-(defn- compute-topology->alive-executors [nimbus existing-assignments topologies topology->executors scratch-topology-id]
+(defn- compute-topology->alive-executors [nimbus existing-assignments topologies topology->executors 
+                                          scratch-topology-id]
   "compute a topology-id -> alive executors map"
   (into {} (for [[tid assignment] existing-assignments
                  :let [topology-details (.getById topologies tid)
                        all-executors (topology->executors tid)
                        alive-executors (if (and scratch-topology-id (= scratch-topology-id tid))
                                          all-executors
-                                         (set (alive-executors nimbus topology-details all-executors assignment)))]]
+                                         (set (alive-executors nimbus topology-details all-executors 
+                                           assignment)))]]
              {tid alive-executors})))
   
-(defn- compute-supervisor->dead-ports [nimbus existing-assignments topology->executors topology->alive-executors]
+(defn- compute-supervisor->dead-ports [nimbus existing-assignments topology->executors 
+                                      topology->alive-executors]
   (let [dead-slots (into [] (for [[tid assignment] existing-assignments
                                   :let [all-executors (topology->executors tid)
                                         alive-executors (topology->alive-executors tid)
@@ -482,11 +488,13 @@
                                                     scheduler-meta (:scheduler-meta supervisor-info)
                                                     dead-ports (supervisor->dead-ports sid)
                                                     ;; hide the dead-ports from the all-ports
-                                                    ;; these dead-ports can be reused in next round of assignments
+                                                    ;; these dead-ports can be reused in next round of 
+                                                    ; assignments
                                                     all-ports (-> (get all-scheduling-slots sid)
                                                                   (set/difference dead-ports)
                                                                   ((fn [ports] (map int ports))))
-                                                    supervisor-details (SupervisorDetails. sid hostname scheduler-meta all-ports)]]
+                                                    supervisor-details (SupervisorDetails. sid hostname 
+                                                      scheduler-meta all-ports)]]
                                           {sid supervisor-details}))]
     (merge all-supervisor-details 
            (into {}
@@ -562,7 +570,8 @@
                                                                 (< (-> topology->scheduler-assignment
                                                                        (get t)
                                                                        num-used-workers )
-                                                                   (-> topologies (.getById t) .getNumWorkers)
+                                                                   (-> topologies (.getById t) 
+                                                                              .getNumWorkers)
                                                                    ))
                                                             ))))
         all-scheduling-slots (->> (all-scheduling-slots nimbus topologies missing-assignment-topologies)
@@ -624,9 +633,13 @@
 
 ;; get existing assignment (just the executor->node+port map) -> default to {}
 ;; filter out ones which have a executor timeout
-;; figure out available slots on cluster. add to that the used valid slots to get total slots. figure out how many executors should be in each slot (e.g., 4, 4, 4, 5)
-;; only keep existing slots that satisfy one of those slots. for rest, reassign them across remaining slots
-;; edge case for slots with no executor timeout but with supervisor timeout... just treat these as valid slots that can be reassigned to. worst comes to worse the executor will timeout and won't assign here next time around
+;; figure out available slots on cluster. add to that the used valid slots to get total slots. 
+; figure out how many executors should be in each slot (e.g., 4, 4, 4, 5)
+;; only keep existing slots that satisfy one of those slots. for rest, reassign them across 
+; remaining slots
+;; edge case for slots with no executor timeout but with supervisor timeout... just treat 
+; these as valid slots that can be reassigned to. worst comes to worse the executor will timeout
+; and won't assign here next time around
 (defnk mk-assignments [nimbus :scratch-topology-id nil]
   (let [conf (:conf nimbus)
         storm-cluster-state (:storm-cluster-state nimbus)
@@ -639,8 +652,10 @@
         ;; read all the assignments
         assigned-topology-ids (.assignments storm-cluster-state nil)
         existing-assignments (into {} (for [tid assigned-topology-ids]
-                                        ;; for the topology which wants rebalance (specified by the scratch-topology-id)
-                                        ;; we exclude its assignment, meaning that all the slots occupied by its assignment
+                                        ;; for the topology which wants rebalance (specified by 
+                                        ; the scratch-topology-id)
+                                        ;; we exclude its assignment, meaning that all the slots 
+                                        ; occupied by its assignment
                                         ;; will be treated as free slot in the scheduler code.
                                         (when (or (nil? scratch-topology-id) (not= tid scratch-topology-id))
                                           {tid (.assignment-info storm-cluster-state tid nil)})))
@@ -662,7 +677,10 @@
                                               all-nodes (->> executor->node+port vals (map first) set)
                                               node->host (->> all-nodes
                                                               (mapcat (fn [node]
-                                                                        (if-let [host (.getHostName inimbus basic-supervisor-details-map node)]
+                                                                        (if-let [host 
+                                                                          (.getHostName inimbus
+                                                                            basic-supervisor-details-map 
+                                                                            node)]
                                                                           [[node host]]
                                                                           )))
                                                               (into {}))
@@ -719,7 +737,8 @@
 ;; job submit:
 ;; 1. read which nodes are available
 ;; 2. set assignments
-;; 3. start storm - necessary in case master goes down, when goes back up can remember to take down the storm (2 states: on or off)
+;; 3. start storm - necessary in case master goes down, when goes back up can remember to 
+; take down the storm (2 states: on or off)
 
 (defn storm-active? [storm-cluster-state storm-name]
   (not-nil? (get-storm-id storm-cluster-state storm-name)))
@@ -839,7 +858,8 @@
         active-topologies (set (.active-storms storm-cluster-state))
         corrupt-topologies (set/difference active-topologies code-ids)]
     (doseq [corrupt corrupt-topologies]
-      (log-message "Corrupt topology " corrupt " has state on zookeeper but doesn't have a local dir on Nimbus. Cleaning up...")
+      (log-message "Corrupt topology " corrupt " has state on zookeeper but doesn't have a local dir
+        on Nimbus. Cleaning up...")
       (.remove-storm! storm-cluster-state corrupt)
       )))
 
@@ -1045,7 +1065,8 @@
               ;; TODO: need to get the port info about supervisors...
               ;; in standalone just look at metadata, otherwise just say N/A?
               supervisor-summaries (dofor [[id info] supervisor-infos]
-                                          (let [ports (set (:meta info)) ;;TODO: this is only true for standalone
+                                          (let [ports (set (:meta info)) ;;TODO: this is only true 
+                                          ; for standalone
                                                 ]
                                             (SupervisorSummary. (:hostname info)
                                                                 (:uptime-secs info)
